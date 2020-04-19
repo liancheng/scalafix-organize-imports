@@ -109,9 +109,16 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   }
 
   private def organizeImports(imports: Seq[Import])(implicit doc: SemanticDocument): Patch = {
+    def isFullyQualified(importer: Importer): Boolean =
+      topQualifierOf(importer.ref).symbol.owner == Symbol.RootPackage
+
     val (fullyQualifiedImporters, relativeImporters) =
       imports flatMap (_.importers) map expandRelative partition { importer =>
-        topQualifierOf(importer.ref).symbol.owner == Symbol.RootPackage
+        // Checking `config.expandRelative` is necessary here, because applying `isFullyQualified`
+        // on fully-qualified importers expanded from a relative importers always returns false.
+        // The reason is that `isFullyQualified` relies on symbol table information, while expanded
+        // importers contain synthesized AST nodes without symbols associated with them.
+        config.expandRelative || isFullyQualified(importer)
       }
 
     // Organizes all the fully-qualified global importers.
