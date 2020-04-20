@@ -16,6 +16,7 @@ inThisBuild(
     ),
     scalaVersion := v.scala212,
     scalacOptions ++= List(
+      "-Ywarn-unused",
       "-Yrangepos",
       "-P:semanticdb:synthetics:on"
     ),
