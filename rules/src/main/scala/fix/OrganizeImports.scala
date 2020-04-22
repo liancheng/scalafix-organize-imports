@@ -10,12 +10,12 @@ import scala.meta.Source
 import scala.meta.Stat
 import scala.meta.Term
 import scala.meta.Tree
-import scala.meta.inputs.Position
 import scala.util.matching.Regex
 
 import metaconfig.Configured
 import scalafix.patch.Patch
 import scalafix.v1._
+import scala.meta.inputs.Position
 
 class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("OrganizeImports") {
   import OrganizeImports._
@@ -69,13 +69,13 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
           .map(_.position)
           .toSet
 
+      def importeePosition(importee: Importee): Position = importee match {
+        case Importee.Rename(from, _) => from.pos
+        case _                        => importee.pos
+      }
+
       val unusedRemoved = importer.importees filterNot { importee =>
-        unusedImports contains (
-          importee match {
-            case Importee.Rename(from, _) => from.pos
-            case _                        => importee.pos
-          }
-        )
+        unusedImports contains importeePosition(importee)
       }
 
       if (unusedRemoved.isEmpty) Nil
