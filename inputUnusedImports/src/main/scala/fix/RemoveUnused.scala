@@ -8,7 +8,7 @@ OrganizeImports {
 
 package fix
 
-import scala.collection.mutable.{Buffer, ArrayBuffer}
+import scala.collection.mutable.{ArrayBuffer, Buffer}
 import java.time.Clock
 import java.lang.{Long => JLong, Double => JDouble}
 
