@@ -171,14 +171,20 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
   private def organizeImporters(importers: Seq[Importer]): Seq[Importer] = {
     import GroupedImports._
+    import ImportsOrder._
 
-    val xs = config.groupedImports match {
-      case Merge   => mergeImportersWithCommonPrefix(importers)
-      case Explode => explodeGroupedImportees(importers)
-      case Keep    => importers
+    val importeesSorted = {
+      config.groupedImports match {
+        case Merge   => mergeImportersWithCommonPrefix(importers)
+        case Explode => explodeGroupedImportees(importers)
+        case Keep    => importers
+      }
+    } map sortImportees
+
+    config.importsOrder match {
+      case Ascii        => importeesSorted sortBy (_.syntax)
+      case SymbolsFirst => importeesSorted sortBy (_.syntax.replace("_", "\0").replace("{", "\1"))
     }
-
-    xs map sortImportees sortBy (_.syntax)
   }
 
   // Returns the index of the group to which the given importer belongs.
