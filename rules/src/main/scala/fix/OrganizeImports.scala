@@ -182,8 +182,8 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
     val importeesSorted = {
       config.groupedImports match {
-        case Merge   => mergeImportersWithCommonPrefix(importers)
-        case Explode => explodeGroupedImportees(importers)
+        case Merge   => mergeImporters(importers)
+        case Explode => explodeImportees(importers)
         case Keep    => importers
       }
     } map sortImportees
@@ -270,7 +270,7 @@ object OrganizeImports {
     List(symbols, lowerCases, upperCases) flatMap (_ sortBy (_.syntax))
   }
 
-  private def mergeImportersWithCommonPrefix(importers: Seq[Importer]): Seq[Importer] = {
+  private def mergeImporters(importers: Seq[Importer]): Seq[Importer] = {
     importers.groupBy(_.ref.syntax).values.toSeq.flatMap {
       case group @ (Importer(ref, _) :: _) =>
         // Checks whether there exists a standalone wildcard import, i.e., a wildcard without any
@@ -338,6 +338,9 @@ object OrganizeImports {
           // Unimports can only be merged in when no standalone wildcard exists.
           val unimports = lastUnimports.filter(_ => maybeWildcard.isEmpty)
 
+          // A wildcard needs to be appended to the merged import when either
+          // at least one standalone wildcard, or at least one unimport
+          // wildcard exists.
           val wildcard =
             if (maybeWildcard.isEmpty && lastUnimports.isEmpty) Nil
             else Importee.Wildcard() :: Nil
@@ -361,7 +364,7 @@ object OrganizeImports {
     }
   }
 
-  private def explodeGroupedImportees(importers: Seq[Importer]): Seq[Importer] =
+  private def explodeImportees(importers: Seq[Importer]): Seq[Importer] =
     importers.flatMap {
       case Importer(ref, Importees(_, renames, unimports, Some(wildcard))) =>
         // When a wildcard exists, all unimports (if any) and the wildcard must appear in the same
