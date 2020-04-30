@@ -273,94 +273,59 @@ object OrganizeImports {
   private def mergeImporters(importers: Seq[Importer]): Seq[Importer] = {
     importers.groupBy(_.ref.syntax).values.toSeq.flatMap {
       case group @ (Importer(ref, _) :: _) =>
-        // Checks whether there exists a standalone wildcard import, i.e., a wildcard without any
-        // accompanying unimports. E.g.:
-        //
-        //   import p._               (1)
-        //   import p.{A, _}          (2)
-        //   import p.{B => C, _}     (3)
-        //   import p.{D => _, _}     (4)
-        //
-        // The wildcards in 1~3 are standalone, but the one in 4 is not.
-        //
-        // _At most one_ standalone wildcard is collected below because the merged import need
-        // _exactly one_ wildcard if _at least one_ standalone wildcard exists.
-        val maybeWildcard = group map (_.importees) collectFirst {
-          case Importees(_, _, Nil, Some(wildcard)) => wildcard
+        val hasWildcard = group map (_.importees) exists {
+          case Importees(_, _, Nil, Some(_)) => true
+          case _                             => false
         }
 
-        // If multiple imports contain unimport wildcards, only those unimports in the last import
-        // can be preserved, e.g.:
-        //
-        //   import p.{A => _, B => _, _}
-        //   import p.{C => _, D => _, _}
-        //   import p.E
-        //
-        // should be rewritten into
-        //
-        //   import p.{C => _, D => _, E, _}
-        val lastUnimports = group.reverse
-          .map(_.importees)
-          .collectFirst { case Importees(_, _, unimports @ (_ :: _), Some(_)) => unimports }
-          .toList
-          .flatten
+        val lastUnimports = group.reverse map (_.importees) collectFirst {
+          case Importees(_, _, unimports @ (_ :: _), Some(_)) => unimports
+        }
 
         val allImportees = group flatMap (_.importees)
 
-        val distinctRenames = allImportees
+        val renames = allImportees
           .filter(_.is[Importee.Rename])
           .groupBy { case Importee.Rename(Name(name), _) => name }
           .mapValues(_.head)
           .values
           .toList
 
-        val (renamedNames, distinctNames) = allImportees
+        val (renamedNames, names) = allImportees
           .filter(_.is[Importee.Name])
-          .groupBy { case Importee.Name(Name(value)) => value }
+          .groupBy { case Importee.Name(Name(name)) => name }
           .mapValues(_.head)
           .values
           .toList
           .partition {
             case Importee.Name(Name(name)) =>
-              // Finds out imported names that are also renamed, e.g.:
-              //
-              //   import java.util
-              //   import java.{util => ju}
-              //
-              // Both should be preserved in the result, but they cannot appear within the same
-              // import statement.
-              distinctRenames.exists {
-                case Importee.Rename(Name(n), _) => n == name
+              renames exists {
+                case Importee.Rename(Name(`name`), _) => true
+                case _                                => false
               }
           }
 
-        val merged = {
-          // Unimports can only be merged in when no standalone wildcard exists.
-          val unimports = lastUnimports.filter(_ => maybeWildcard.isEmpty)
+        val importeesList = (hasWildcard, lastUnimports) match {
+          case (true, _) if renames.isEmpty =>
+            Seq(Importee.Wildcard() :: Nil)
 
-          // A wildcard needs to be appended to the merged import when either
-          // at least one standalone wildcard, or at least one unimport
-          // wildcard exists.
-          val wildcard =
-            if (maybeWildcard.isEmpty && lastUnimports.isEmpty) Nil
-            else Importee.Wildcard() :: Nil
+          case (true, _) =>
+            Seq(Importee.Wildcard() :: Nil, renames)
 
-          Importer(ref, unimports ++ distinctRenames ++ distinctNames ++ wildcard)
+          case (false, Some(unimports)) if renamedNames.isEmpty =>
+            Seq(renames ++ unimports :+ Importee.Wildcard())
+
+          case (false, Some(unimports)) =>
+            Seq(renamedNames, renames ++ unimports :+ Importee.Wildcard())
+
+          case (false, None) if renamedNames.isEmpty =>
+            Seq(renames ++ names)
+
+          case (false, None) =>
+            Seq(renamedNames, renames ++ names)
         }
 
-        // Move all renamed names into a separate importer, e.g.:
-        //
-        //   import java.util
-        //   import java.{util => ju}
-        //   import java.lang
-        //   import java.{lang => jl}
-        //
-        // should be merged into:
-        //
-        //   import java.{lang, util}
-        //   import java.{lang => jl, util => ju}
-        if (renamedNames.isEmpty) merged :: Nil
-        else merged :: Importer(ref, renamedNames) :: Nil
+        importeesList map (Importer(ref, _))
     }
   }
 
