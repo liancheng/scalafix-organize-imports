@@ -325,7 +325,7 @@ object OrganizeImports {
 
   private def explodeImportees(importers: Seq[Importer]): Seq[Importer] =
     importers.flatMap {
-      case Importer(ref, Importees(names, renames, unimports, wildcard @ Some(_))) =>
+      case Importer(ref, Importees(names, renames, unimports, Some(wildcard))) =>
         // When a wildcard exists, all unimports (if any) and the wildcard must appear in the same
         // importer, e.g.:
         //
@@ -336,7 +336,7 @@ object OrganizeImports {
         //   import p.{A => _, B => _, _}
         //   import p.{C => D}
         //   import p.E
-        (names ++ renames).map(i => Importer(ref, i :: Nil)) :+ Importer(ref, unimports ++ wildcard)
+        (names ++ renames).map(i => Importer(ref, i :: Nil)) :+ Importer(ref, unimports :+ wildcard)
 
       case importer =>
         importer.importees map (i => importer.copy(importees = i :: Nil))
