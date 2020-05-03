@@ -8,6 +8,6 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Lint
-        run: sbt scalafmtCheckAll
+        run: sbt scalafmtCheckAll "rules/scalafix --check"
       - name: Test
         run: sbt tests/test
