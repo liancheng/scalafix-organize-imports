@@ -159,9 +159,11 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   private def expandRelative(importer: Importer)(implicit doc: SemanticDocument): Importer = {
     // NOTE: An `Importer.Ref` instance constructed by `toRef` does NOT contain symbol information
     // since it's not parsed from the source file.
-    def toRef(symbol: Symbol): Term.Ref =
-      if (symbol.owner == Symbol.RootPackage) Term.Name(symbol.displayName)
-      else Term.Select(toRef(symbol.owner), Term.Name(symbol.displayName))
+    def toRef(symbol: Symbol): Term.Ref = {
+      val owner = symbol.owner
+      if (owner.isRootPackage || owner.isEmptyPackage) Term.Name(symbol.displayName)
+      else Term.Select(toRef(owner), Term.Name(symbol.displayName))
+    }
 
     if (!config.expandRelative || isFullyQualified(importer)) importer
     else importer.copy(ref = toRef(importer.ref.symbol.normalized))
