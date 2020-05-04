@@ -67,54 +67,23 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     if (globalImports.isEmpty) Patch.empty else organizeImports(globalImports)
   }
 
-  private def removeUnused(importer: Importer)(implicit doc: SemanticDocument): Seq[Importer] =
-    if (!config.removeUnused) importer :: Nil
-    else {
-      val unusedImports =
-        doc.diagnostics
-          .filter(_.message == "Unused import")
-          .map(_.position)
-          .toSet
-
-      def importeePosition(importee: Importee): Position =
-        importee match {
-          case Importee.Rename(from, _) => from.pos
-          case _                        => importee.pos
-        }
-
-      val unusedRemoved = importer.importees filterNot { importee =>
-        unusedImports contains importeePosition(importee)
-      }
-
-      if (unusedRemoved.isEmpty) Nil
-      else importer.copy(importees = unusedRemoved) :: Nil
-    }
-
   private def organizeImports(imports: Seq[Import])(implicit doc: SemanticDocument): Patch = {
     val (fullyQualifiedImporters, relativeImporters) =
-      imports flatMap (_.importers) map expandRelative partition { importer =>
-        // Checking `config.expandRelative` is necessary here, because applying `isFullyQualified`
-        // on fully-qualified importers expanded from a relative importers always returns false.
-        // The reason is that `isFullyQualified` relies on symbol table information, while expanded
-        // importers contain synthesized AST nodes without symbols associated with them.
-        config.expandRelative || isFullyQualified(importer)
-      }
+      imports flatMap (_.importers) flatMap removeUnused partition isFullyQualified
 
     // Organizes all the fully-qualified global importers.
-    val (_, sortedImporterGroups: Seq[Seq[Importer]]) =
-      fullyQualifiedImporters
-        .flatMap(removeUnused)
+    val (_, sortedImporterGroups: Seq[Seq[Importer]]) = {
+      val expanded =
+        if (!config.expandRelative) Nil
+        else relativeImporters map expandRelative
+
+      (fullyQualifiedImporters ++ expanded)
         .groupBy(matchImportGroup) // Groups imports by importer prefix.
         .mapValues(organizeImporters) // Organize imports within the same group.
         .toSeq
         .sortBy { case (index, _) => index } // Sorts import groups by group index
         .unzip
-
-    // Append all the relative imports (if any) at the end as a separate group with the original
-    // order unchanged.
-    val organizedImporterGroups: Seq[Seq[Importer]] =
-      if (relativeImporters.isEmpty) sortedImporterGroups
-      else sortedImporterGroups :+ relativeImporters.flatMap(removeUnused)
+    }
 
     // A patch that removes all the tokens forming the original imports.
     val removeOriginalImports = Patch.removeTokens(
@@ -124,19 +93,24 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       )
     )
 
-    // A patch that inserts the organized imports. Note that global imports within curly-braced
-    // packages must be indented accordingly, e.g.:
-    //
-    //   package foo {
-    //     package bar {
-    //       import baz
-    //       import qux
-    //     }
-    //   }
+    // A patch that inserts the organized imports.
     val insertOrganizedImports = {
-      val firstImportToken = imports.head.tokens.head
-      val indent: Int = firstImportToken.pos.startColumn
+      // Append all the relative imports (if any) at the end as a separate group with the original
+      // order unchanged.
+      val organizedImporterGroups: Seq[Seq[Importer]] = {
+        val relativeGroup = if (config.expandRelative) Nil else relativeImporters
+        sortedImporterGroups :+ relativeGroup filter (_.nonEmpty)
+      }
 
+      // Note that global imports within curly-braced packages must be indented accordingly, e.g.:
+      //
+      //   package foo {
+      //     package bar {
+      //       import baz
+      //       import qux
+      //     }
+      //   }
+      val firstImportToken = imports.head.tokens.head
       val indentedOutput: Seq[String] =
         organizedImporterGroups
           .map(prettyPrintImportGroup)
@@ -147,7 +121,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
             // The first line will be inserted at an already indented position.
             case (line, 0)                 => line
             case (line, _) if line.isEmpty => line
-            case (line, _)                 => " " * indent + line
+            case (line, _)                 => " " * firstImportToken.pos.startColumn + line
           }
 
       Patch.addLeft(firstImportToken, indentedOutput mkString "\n")
@@ -165,10 +139,11 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
           .map(_.position)
           .toSet
 
-      def importeePosition(importee: Importee): Position = importee match {
-        case Importee.Rename(from, _) => from.pos
-        case _                        => importee.pos
-      }
+      def importeePosition(importee: Importee): Position =
+        importee match {
+          case Importee.Rename(from, _) => from.pos
+          case _                        => importee.pos
+        }
 
       val unusedRemoved = importer.importees filterNot { importee =>
         unusedImports contains importeePosition(importee)
