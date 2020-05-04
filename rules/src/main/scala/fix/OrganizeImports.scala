@@ -156,6 +156,28 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     (removeOriginalImports + insertOrganizedImports).atomic
   }
 
+  private def removeUnused(importer: Importer)(implicit doc: SemanticDocument): Seq[Importer] =
+    if (!config.removeUnused) importer :: Nil
+    else {
+      val unusedImports =
+        doc.diagnostics
+          .filter(_.message == "Unused import")
+          .map(_.position)
+          .toSet
+
+      def importeePosition(importee: Importee): Position = importee match {
+        case Importee.Rename(from, _) => from.pos
+        case _                        => importee.pos
+      }
+
+      val unusedRemoved = importer.importees filterNot { importee =>
+        unusedImports contains importeePosition(importee)
+      }
+
+      if (unusedRemoved.isEmpty) Nil
+      else importer.copy(importees = unusedRemoved) :: Nil
+    }
+
   private def expandRelative(importer: Importer)(implicit doc: SemanticDocument): Importer = {
     // NOTE: An `Importer.Ref` instance constructed by `toRef` does NOT contain symbol information
     // since it's not parsed from the source file.
@@ -433,7 +455,8 @@ object OrganizeImports {
         //   import p.{A => _, B => _, _}
         //   import p.{C => D}
         //   import p.E
-        (names ++ renames).map(i => Importer(ref, i :: Nil)) :+ Importer(ref, unimports :+ wildcard)
+        val importeesList = (names ++ renames).map(_ :: Nil) :+ (unimports :+ wildcard)
+        importeesList filter (_.nonEmpty) map (Importer(ref, _))
 
       case importer =>
         importer.importees map (i => importer.copy(importees = i :: Nil))
