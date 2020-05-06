@@ -69,8 +69,10 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   }
 
   private def organizeImports(imports: Seq[Import])(implicit doc: SemanticDocument): Patch = {
-    val (fullyQualifiedImporters, relativeImporters) =
-      imports flatMap (_.importers) flatMap removeUnused partition isFullyQualified
+    val (implicits, noImplicits) =
+      partitionImplicits(imports flatMap (_.importers) flatMap removeUnused)
+
+    val (fullyQualifiedImporters, relativeImporters) = noImplicits partition isFullyQualified
 
     // Organizes all the fully-qualified global importers.
     val fullyQualifiedGroups: Seq[Seq[Importer]] = {
@@ -78,7 +80,13 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       groupImporters(fullyQualifiedImporters ++ expanded)
     }
 
-    val relativeGroup = if (config.expandRelative) Nil else relativeImporters
+    // Moves relative imports (when `config.expandRelative` is false) and explicitly imported
+    // implicit names into a separate order preserving group. This group will be appended after
+    // all the other groups.
+    val orderPreservingGroup = {
+      val relatives = if (config.expandRelative) Nil else relativeImporters
+      relatives ++ implicits sortBy (_.importees.head.pos.start)
+    }
 
     // Builds a patch that removes all the tokens forming the original imports.
     val removeOriginalImports = Patch.removeTokens(
@@ -88,11 +96,10 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       )
     )
 
-    // Builds a patch that inserts the organized imports. Relative imports (if any) are appended at
-    // the end as a separate group with the original order unchanged.
+    // Builds a patch that inserts the organized imports.
     val insertOrganizedImports = insertOrganizedImportsBefore(
       imports.head.tokens.head,
-      fullyQualifiedGroups :+ relativeGroup filter (_.nonEmpty)
+      fullyQualifiedGroups :+ orderPreservingGroup filter (_.nonEmpty)
     )
 
     (removeOriginalImports + insertOrganizedImports).atomic
@@ -120,6 +127,25 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       if (unusedRemoved.isEmpty) Nil
       else importer.copy(importees = unusedRemoved) :: Nil
     }
+
+  private def partitionImplicits(
+    importers: Seq[Importer]
+  )(implicit doc: SemanticDocument): (Seq[Importer], Seq[Importer]) = {
+    val (implicits, implicitPositions) = importers.flatMap {
+      case importer @ Importer(_, importees) =>
+        importees
+          .filter(i => i.is[Importee.Name] && i.symbol.info.exists(_.isImplicit))
+          .map(i => importer.copy(importees = i :: Nil) -> i.pos)
+    }.unzip
+
+    val noImplicits = importers.flatMap {
+      case importer @ Importer(_, importees) =>
+        val implicitsRemoved = importees.filterNot(i => implicitPositions.contains(i.pos))
+        if (implicitsRemoved.isEmpty) Nil else importer.copy(importees = implicitsRemoved) :: Nil
+    }
+
+    (implicits, noImplicits)
+  }
 
   private def expandRelative(importer: Importer)(implicit doc: SemanticDocument): Importer = {
     // NOTE: An `Importer.Ref` instance constructed by `toRef` does NOT contain symbol information
@@ -191,12 +217,12 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
     // The Scala language spec allows an import expression to have at most one final wildcard, which
     // can only appears in the last position.
-    val (wildcard, withoutWildcard) = importer.importees partition (_.is[Importee.Wildcard])
+    val (wildcard, noWildcard) = importer.importees partition (_.is[Importee.Wildcard])
 
     val orderedImportees = config.importSelectorsOrder match {
-      case Ascii        => withoutWildcard.sortBy(_.syntax)
-      case SymbolsFirst => sortImporteesSymbolsFirst(withoutWildcard)
-      case Keep         => withoutWildcard
+      case Ascii        => noWildcard.sortBy(_.syntax)
+      case SymbolsFirst => sortImporteesSymbolsFirst(noWildcard)
+      case Keep         => noWildcard
     }
 
     importer.copy(importees = orderedImportees ++ wildcard)
@@ -214,34 +240,6 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       val (_, index) = matchedGroups.maxBy { case (length, _) => length }
       index
     }
-  }
-
-  private def insertOrganizedImportsBefore(
-    token: Token,
-    importGroups: Seq[Seq[Importer]]
-  ): Patch = {
-    // Global imports within curly-braced packages must be indented accordingly, e.g.:
-    //
-    //   package foo {
-    //     package bar {
-    //       import baz
-    //       import qux
-    //     }
-    //   }
-    val indentedOutput: Iterator[String] =
-      importGroups
-        .map(prettyPrintImportGroup)
-        .mkString("\n\n")
-        .lines
-        .zipWithIndex
-        .map {
-          // The first line will be inserted at an already indented position.
-          case (line, 0)                 => line
-          case (line, _) if line.isEmpty => line
-          case (line, _)                 => " " * token.pos.startColumn + line
-        }
-
-    Patch.addLeft(token, indentedOutput mkString "\n")
   }
 }
 
@@ -476,5 +474,33 @@ object OrganizeImports {
 
       Option((names.toList, renames.toList, unimports.toList, maybeWildcard))
     }
+  }
+
+  private def insertOrganizedImportsBefore(
+    token: Token,
+    importGroups: Seq[Seq[Importer]]
+  ): Patch = {
+    // Global imports within curly-braced packages must be indented accordingly, e.g.:
+    //
+    //   package foo {
+    //     package bar {
+    //       import baz
+    //       import qux
+    //     }
+    //   }
+    val indentedOutput: Iterator[String] =
+      importGroups
+        .map(prettyPrintImportGroup)
+        .mkString("\n\n")
+        .lines
+        .zipWithIndex
+        .map {
+          // The first line will be inserted at an already indented position.
+          case (line, 0)                 => line
+          case (line, _) if line.isEmpty => line
+          case (line, _)                 => " " * token.pos.startColumn + line
+        }
+
+    Patch.addLeft(token, indentedOutput mkString "\n")
   }
 }
