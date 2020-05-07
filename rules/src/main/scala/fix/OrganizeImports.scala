@@ -82,27 +82,29 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
     // Moves relative imports (when `config.expandRelative` is false) and explicitly imported
     // implicit names into a separate order preserving group. This group will be appended after
-    // all the other groups.
+    // all the other groups. See [issue #30][1] for why implicits require special handling.
+    //
+    // [1]: https://github.com/liancheng/scalafix-organize-imports/issues/30
     val orderPreservingGroup = {
       val relatives = if (config.expandRelative) Nil else relativeImporters
       relatives ++ implicits sortBy (_.importees.head.pos.start)
     }
 
+    // Builds a patch that inserts the organized imports.
+    val insertionPatch = insertOrganizedImportsBefore(
+      imports.head.tokens.head,
+      fullyQualifiedGroups :+ orderPreservingGroup filter (_.nonEmpty)
+    )
+
     // Builds a patch that removes all the tokens forming the original imports.
-    val removeOriginalImports = Patch.removeTokens(
+    val removalPatch = Patch.removeTokens(
       doc.tree.tokens.slice(
         imports.head.tokens.start,
         imports.last.tokens.end
       )
     )
 
-    // Builds a patch that inserts the organized imports.
-    val insertOrganizedImports = insertOrganizedImportsBefore(
-      imports.head.tokens.head,
-      fullyQualifiedGroups :+ orderPreservingGroup filter (_.nonEmpty)
-    )
-
-    (removeOriginalImports + insertOrganizedImports).atomic
+    (insertionPatch + removalPatch).atomic
   }
 
   private def removeUnused(importer: Importer)(implicit doc: SemanticDocument): Seq[Importer] =
@@ -134,7 +136,8 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     val (implicits, implicitPositions) = importers.flatMap {
       case importer @ Importer(_, importees) =>
         importees
-          .filter(i => i.is[Importee.Name] && i.symbol.info.exists(_.isImplicit))
+          .filter(_.is[Importee.Name])
+          .filter(_.symbol.info.exists(_.isImplicit))
           .map(i => importer.copy(importees = i :: Nil) -> i.pos)
     }.unzip
 
