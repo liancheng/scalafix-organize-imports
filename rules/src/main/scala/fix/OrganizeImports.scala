@@ -449,7 +449,8 @@ object OrganizeImports {
   private def explodeImportees(importers: Seq[Importer]): Seq[Importer] =
     importers.flatMap {
       case importer @ Importer(_, _ :: Nil) =>
-        // If the importer has exactly one importee, leave it untouched.
+        // If the importer has exactly one importee, returns it as is to preserve the original
+        // source level formatting.
         importer :: Nil
 
       case Importer(ref, Importees(names, renames, unimports, Some(wildcard))) =>
