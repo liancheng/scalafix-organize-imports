@@ -89,11 +89,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
   private def organizeGlobalImports(imports: Seq[Import])(implicit doc: SemanticDocument): Patch = {
     val (implicits, noImplicits) = partitionImplicits(
-      for {
-        `import` <- imports
-        importer <- `import`.importers
-        unusedRemoved <- removeUnused(importer).toSeq
-      } yield unusedRemoved
+      imports flatMap (_.importers) flatMap (removeUnused(_).toSeq)
     )
 
     val (fullyQualifiedImporters, relativeImporters) = noImplicits partition isFullyQualified
@@ -165,7 +161,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
       var rewritten = false
 
-      val unusedRemoved = importer.importees.flatMap {
+      val noUnused = importer.importees.flatMap {
         case i @ Importee.Rename(from, _) if isUnused(i) && hasUsedWildcard =>
           // Unimport the identifier instead of removing the importee since unused renamed may still
           // impact compilation by shadowing an identifier.
@@ -183,8 +179,8 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       }
 
       if (!rewritten) Some(importer)
-      else if (unusedRemoved.isEmpty) None
-      else Some(importer.copy(importees = unusedRemoved))
+      else if (noUnused.isEmpty) None
+      else Some(importer.copy(importees = noUnused))
     }
 
   private def partitionImplicits(
@@ -266,7 +262,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
         case GroupedImports.Explode => explodeImportees(importers)
         case GroupedImports.Keep    => importers
       }
-    } map (coalesceImportees _ andThen sortImportees _)
+    } map (coalesceImportees _ andThen sortImportees)
 
     config.importsOrder match {
       case ImportsOrder.Ascii        => importeesSorted sortBy (_.syntax)
@@ -426,7 +422,7 @@ object OrganizeImports {
         // level formatting.
         importer :: Nil
 
-      case group @ (Importer(ref, _) :: _) =>
+      case group @ Importer(ref, _) :: _ =>
         val importeeLists = group map (_.importees)
 
         val hasWildcard = importeeLists exists {
@@ -443,7 +439,7 @@ object OrganizeImports {
         //
         // Only `C` is unimported. `A` and `B` are still available.
         val lastUnimportsWildcard = importeeLists.reverse collectFirst {
-          case Importees(_, _, unimports @ (_ :: _), Some(_)) => unimports
+          case Importees(_, _, unimports @ _ :: _, Some(_)) => unimports
         }
 
         // Collects all unimports without an accompanying wildcard.
