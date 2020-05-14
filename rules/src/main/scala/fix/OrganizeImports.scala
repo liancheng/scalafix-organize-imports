@@ -14,6 +14,7 @@ import scala.meta.Term
 import scala.meta.Tree
 import scala.meta.inputs.Position
 import scala.meta.tokens.Token
+import scala.util.Try
 import scala.util.matching.Regex
 
 import metaconfig.Configured
@@ -193,7 +194,11 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       case importer @ Importer(_, importees) =>
         importees
           .filter(_.is[Importee.Name])
-          .filter(_.symbol.info.exists(_.isImplicit))
+          // HACK: In certain cases, `Symbol.info` may throw `MissingSymbolException` due to some
+          // unknown reason. If it happens, here we assume that this symbol is not an implicit.
+          //
+          // See https://github.com/scalacenter/scalafix/issues/1123
+          .filter(name => Try(name.symbol.info exists (_.isImplicit)) getOrElse false)
           // Explicitly imported `scala.languageFeature` implicits are special cased and treated as
           // normal imports due to the following reasons:
           //
@@ -217,7 +222,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
           //    `OrganizeImports` may produce different results when `OrganizeImports` users upgrade
           //    their code base from Scala 2.12 to 2.13. This introduces an annoying and unnecessary
           //    thing to be taken care of.
-          .filter(_.symbol.owner.normalized != "scala.languageFeature.")
+          .filter(_.symbol.owner.normalized.value != "scala.languageFeature.")
           .map(i => importer.copy(importees = i :: Nil) -> i.pos)
     }.unzip
 
