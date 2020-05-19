@@ -233,6 +233,8 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     // since it's not parsed from the source file.
     def toRef(symbol: Symbol): Term.Ref = {
       val owner = symbol.owner
+      // See https://github.com/liancheng/scalafix-organize-imports/issues/55 for why package
+      // objects must be skipped.
       if (symbol.safeInfo exists (_.isPackageObject)) toRef(owner)
       else if (owner.isRootPackage || owner.isEmptyPackage) Term.Name(symbol.displayName)
       else Term.Select(toRef(owner), Term.Name(symbol.displayName))
