@@ -236,12 +236,17 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     // since it's not parsed from the source file.
     def toRef(symbol: Symbol): Term.Ref = {
       val owner = symbol.owner
-      if (owner.isRootPackage || owner.isEmptyPackage) Term.Name(symbol.displayName)
-      else Term.Select(toRef(owner), Term.Name(symbol.displayName))
+
+      if (symbol.info.exists(_.isPackageObject))
+        toRef(owner)
+      else if (owner.isRootPackage || owner.isEmptyPackage)
+        Term.Name(symbol.displayName)
+      else
+        Term.Select(toRef(owner), Term.Name(symbol.displayName))
     }
 
     if (!config.expandRelative || isFullyQualified(importer)) importer
-    else importer.copy(ref = toRef(importer.ref.symbol.normalized))
+    else importer.copy(ref = toRef(importer.ref.symbol))
   }
 
   private def groupImporters(importers: Seq[Importer]): Seq[Seq[Importer]] = {
