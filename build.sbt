@@ -14,7 +14,9 @@ inThisBuild(
       )
     ),
     scalaVersion := v.scala212,
+    crossScalaVersions := List(v.scala212, v.scala213),
     scalacOptions ++= List(
+      "-deprecation",
       "-Yrangepos",
       "-P:semanticdb:synthetics:on"
     ),
