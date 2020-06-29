@@ -517,6 +517,8 @@ object OrganizeImports {
               }
           }
 
+        val wildcard = Importee.Wildcard()
+
         val importeesList = (hasWildcard, lastUnimportsWildcard) match {
           case (true, _) =>
             // A few things to note in this case:
@@ -560,11 +562,11 @@ object OrganizeImports {
             //      import p.{A => A1, _}
             //
             //    Otherwise, the original name `A` is no longer available.
-            Seq(allRenames, importedNames :+ Importee.Wildcard())
+            Seq(allRenames, importedNames :+ wildcard)
 
           case (false, Some(unimports)) =>
             // A wildcard must be appended for unimports.
-            Seq(renamedNames, importedNames ++ allRenames ++ unimports :+ Importee.Wildcard())
+            Seq(renamedNames, importedNames ++ allRenames ++ unimports :+ wildcard)
 
           case (false, None) =>
             Seq(renamedNames, importedNames ++ allRenames ++ allUnimports)
