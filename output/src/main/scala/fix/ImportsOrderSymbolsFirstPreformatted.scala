@@ -6,4 +6,4 @@ import scala.collection.immutable.{
   Seq
 }
 
-object ImportsOrderPreformatted
+object ImportsOrderSymbolsFirstPreformatted

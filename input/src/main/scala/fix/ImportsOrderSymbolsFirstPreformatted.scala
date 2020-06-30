@@ -1,6 +1,9 @@
 /*
 rules = [OrganizeImports]
-OrganizeImports.groupedImports = Keep
+OrganizeImports {
+  groupedImports = Keep
+  importsOrder = SymbolsFirst
+}
  */
 package fix
 
@@ -10,4 +13,4 @@ import scala.collection.immutable.{
 }
 import scala.collection.immutable.{Vector, IntMap}
 
-object ImportsOrderPreformatted
+object ImportsOrderSymbolsFirstPreformatted
