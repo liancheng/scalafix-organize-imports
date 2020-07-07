@@ -369,7 +369,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
           .mapValues {
             case rename :: Nil => rename
             case renames @ (head @ Importee.Rename(from, _)) :: _ =>
-              diagnostics += RenamedMultipleTimes(from, renames)
+              diagnostics += TooManyAliases(from, renames)
               head
           }
           .values

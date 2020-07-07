@@ -18,7 +18,7 @@ case class ImporterSymbolNotFound(ref: Term.Name) extends Diagnostic {
   override def severity: LintSeverity = LintSeverity.Warning
 }
 
-case class RenamedMultipleTimes(name: Name, renames: Seq[Importee.Rename]) extends Diagnostic {
+case class TooManyAliases(name: Name, renames: Seq[Importee.Rename]) extends Diagnostic {
   assert(renames.length > 1)
 
   override def position: meta.Position = name.pos
@@ -34,7 +34,7 @@ case class RenamedMultipleTimes(name: Name, renames: Seq[Importee.Rename]) exten
       case init :+ last        => init mkString ("", ", ", s", and $last")
     }
 
-    s"When 'OrganizeImports.groupedImports' is set to `Merge`, renaming a name to multiple" +
+    s"When `OrganizeImports.groupedImports` is set to `Merge`, renaming a name to multiple" +
       s" aliases within the same source file is not supported. In this case, '${name.value}' is" +
       s" renamed to $aliasList."
   }
