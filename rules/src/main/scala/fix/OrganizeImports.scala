@@ -302,14 +302,19 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   }
 
   private def organizeImportGroup(importers: Seq[Importer]): Seq[Importer] = {
+    import Token.{LeftBrace, RightBrace}
+
     // Issue #96: For importers with only a single `Importee.Name` importee, if the importee is
     // curly-braced, remove the curly-braces. For example: `import p.{X}` should be rewritten into
-    // `import p.X`. Here we invoke `.copy()` to erase the source position information from the
-    // original importer, so that when this importer is preserved in the result, the pretty-printer
-    // formats it without the unneeded curly-braces.
+    // `import p.X`.
     val noUnneededBraces = importers map {
-      case importer @ Importer(_, Importee.Name(_) :: Nil) => importer.copy()
-      case importer                                        => importer
+      case importer @ Importer(_, Importee.Name(_) :: Nil)
+          if importer.tokens.contains(LeftBrace) && importer.tokens.contains(RightBrace) =>
+        // The `.copy()` call erases the source position information from the original importer, so
+        // that if `importer` is preserved in the result, the pretty-printer reformats it without
+        // the unneeded curly-braces.
+        importer.copy()
+      case importer => importer
     }
 
     val importeesSorted = locally {
