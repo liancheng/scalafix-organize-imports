@@ -127,7 +127,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     }
 
     // Builds a patch that inserts the organized imports.
-    val insertionPatch = insertOrganizedImportsBefore(
+    val insertionPatch = prependOrganizedImports(
       imports.head.tokens.head,
       fullyQualifiedGroups :+ orderPreservingGroup filter (_.nonEmpty)
     )
@@ -302,18 +302,21 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   }
 
   private def organizeImportGroup(importers: Seq[Importer]): Seq[Importer] = {
-    import Token.{LeftBrace, RightBrace}
-
     // Issue #96: For importers with only a single `Importee.Name` importee, if the importee is
-    // curly-braced, remove the curly-braces. For example: `import p.{X}` should be rewritten into
-    // `import p.X`.
+    // curly-braced, remove the unneeded curly-braces. For example: `import p.{X}` should be
+    // rewritten into `import p.X`.
     val noUnneededBraces = importers map {
-      case importer @ Importer(_, Importee.Name(_) :: Nil)
-          if importer.tokens.contains(LeftBrace) && importer.tokens.contains(RightBrace) =>
-        // The `.copy()` call erases the source position information from the original importer, so
-        // that if `importer` is preserved in the result, the pretty-printer reformats it without
-        // the unneeded curly-braces.
-        importer.copy()
+      case importer @ Importer(_, Importee.Name(_) :: Nil) =>
+        import Token.{Ident, LeftBrace, RightBrace}
+
+        importer.tokens.reverse.toList match {
+          // The `.copy()` call erases the source position information from the original importer,
+          // so that instead of returning the original source text, the pretty-printer will reformat
+          // `importer` without the unneeded curly-braces.
+          case RightBrace() :: Ident(_) :: LeftBrace() :: _ => importer.copy()
+          case _                                            => importer
+        }
+
       case importer => importer
     }
 
@@ -687,10 +690,7 @@ object OrganizeImports {
     }
   }
 
-  private def insertOrganizedImportsBefore(
-    token: Token,
-    importGroups: Seq[Seq[Importer]]
-  ): Patch = {
+  private def prependOrganizedImports(token: Token, importGroups: Seq[Seq[Importer]]): Patch = {
     // Global imports within curly-braced packages must be indented accordingly, e.g.:
     //
     //   package foo {
