@@ -4,6 +4,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
+import scala.util.matching.Regex
 
 import metaconfig.Configured
 import scala.meta.Import
