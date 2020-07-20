@@ -3,7 +3,6 @@ package fix
 import scala.meta.Importee
 import scala.meta.Name
 import scala.meta.Term
-
 import scalafix.lint.Diagnostic
 import scalafix.lint.LintSeverity
 
