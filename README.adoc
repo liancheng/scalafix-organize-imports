@@ -537,6 +537,8 @@ Before:
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Buffer
 import scala.collection.mutable.StringBuilder
+import scala.collection.immutable.Set
+import scala.collection.immutable._
 ----
 
 After:
@@ -544,6 +546,37 @@ After:
 [source,scala]
 ----
 import scala.collection.mutable.{ArrayBuffer, Buffer, StringBuilder}
+import scala.collection.immutable.{Set, _}
+----
+--
+
+`AggressiveMerge`::
++
+--
+Configuration:
+
+[source,hocon]
+----
+OrganizeImports.groupedImports = AggressiveMerge
+----
+
+Before:
+
+[source,scala]
+----
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.Buffer
+import scala.collection.mutable.StringBuilder
+import scala.collection.immutable.Set
+import scala.collection.immutable._
+----
+
+After:
+
+[source,scala]
+----
+import scala.collection.mutable.{ArrayBuffer, Buffer, StringBuilder}
+import scala.collection.immutable._
 ----
 --
 
