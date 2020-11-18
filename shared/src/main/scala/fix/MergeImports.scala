@@ -55,7 +55,6 @@ object MergeImports {
     object g2 {
       object c
       object d
-      object e
     }
   }
 }
