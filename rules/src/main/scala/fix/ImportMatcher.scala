@@ -12,6 +12,7 @@ object ImportMatcher {
   def parse(pattern: String): ImportMatcher =
     pattern match {
       case p if p startsWith "re:" => ImportMatcher.RE(new Regex(p stripPrefix "re:"))
+      case "---"                   => ImportMatcher.BlankLine
       case "*"                     => ImportMatcher.Wildcard
       case p                       => ImportMatcher.PlainText(p)
     }
@@ -29,5 +30,9 @@ object ImportMatcher {
     // This matcher matches nothing. The wildcard group is always special-cased at the end of the
     // import group matching process.
     def matches(importer: Importer): Int = 0
+  }
+
+  case object BlankLine extends ImportMatcher {
+    override def matches(i: Importer): Int = 0
   }
 }
