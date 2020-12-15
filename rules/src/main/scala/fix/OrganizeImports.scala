@@ -32,9 +32,23 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   import OrganizeImports._
 
   private val importMatchers = {
-    val matchers = config.groups map ImportMatcher.parse
     // The wildcard group should always exist. Append one at the end if omitted.
-    if (matchers contains ImportMatcher.Wildcard) matchers else matchers :+ ImportMatcher.Wildcard
+    val matchers = {
+      val parsed = config.groups map ImportMatcher.parse
+      if (parsed contains ImportMatcher.Wildcard) parsed else parsed :+ ImportMatcher.Wildcard
+    }
+
+    // Inserts blank lines between adjacent import groups if necessary.
+    config.blankLines match {
+      case BlankLines.Manual =>
+        matchers
+
+      case BlankLines.Auto =>
+        Seq.tabulate((matchers.length * 2 - 1) max 0) {
+          case i if i % 2 == 0 => matchers(i / 2)
+          case _               => ImportMatcher.BlankLine
+        }
+    }
   }
 
   private val wildcardGroupIndex: Int = importMatchers indexOf ImportMatcher.Wildcard
