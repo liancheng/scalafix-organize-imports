@@ -38,17 +38,19 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       if (parsed contains ImportMatcher.Wildcard) parsed else parsed :+ ImportMatcher.Wildcard
     }
 
-    // Inserts blank lines between adjacent import groups if necessary.
-    config.blankLines match {
-      case BlankLines.Manual =>
-        matchers
+    (
+      config.blankLines match {
+        case BlankLines.Manual =>
+          matchers
 
-      case BlankLines.Auto =>
-        Seq.tabulate((matchers.length * 2 - 1) max 0) {
-          case i if i % 2 == 0 => matchers(i / 2)
-          case _               => ImportMatcher.BlankLine
-        }
-    }
+        // Inserts blank lines between adjacent import groups automatically.
+        case BlankLines.Auto =>
+          Seq.tabulate((matchers.length * 2 - 1) max 0) {
+            case i if i % 2 == 0 => matchers(i / 2)
+            case _               => ImportMatcher.BlankLine
+          }
+      }
+    ) :+ ImportMatcher.BlankLine
   }
 
   private val wildcardGroupIndex: Int = importMatchers indexOf ImportMatcher.Wildcard
@@ -118,7 +120,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     val (fullyQualifiedImporters, relativeImporters) = noImplicits partition isFullyQualified
 
     // Organizes all the fully-qualified global importers.
-    val fullyQualifiedGroups: Seq[Seq[Importer]] = {
+    val fullyQualifiedGroups: Seq[(Int, Seq[Importer])] = {
       val expanded = if (config.expandRelative) relativeImporters map expandRelative else Nil
       groupImporters(fullyQualifiedImporters ++ expanded)
     }
@@ -131,13 +133,14 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     // require special handling.
     val orderPreservingGroup = {
       val relatives = if (config.expandRelative) Nil else relativeImporters
-      relatives ++ implicits sortBy (_.importees.head.pos.start)
+      val imports = (relatives ++ implicits).sortBy(_.importees.head.pos.start)
+      Option(imports).filter(_.nonEmpty)
     }
 
     // Builds a patch that inserts the organized imports.
     val insertionPatch = prependOrganizedImports(
       imports.head.tokens.head,
-      fullyQualifiedGroups :+ orderPreservingGroup filter (_.nonEmpty)
+      fullyQualifiedGroups ++ orderPreservingGroup.map(importMatchers.length -> _)
     )
 
     // Builds a patch that removes all the tokens forming the original imports.
@@ -286,15 +289,15 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     importer.copy(ref = replaceTopQualifier(importer.ref, fullyQualifiedTopQualifier))
   }
 
-  private def groupImporters(importers: Seq[Importer]): Seq[Seq[Importer]] =
+  private def groupImporters(importers: Seq[Importer]): Seq[(Int, Seq[Importer])] = {
     importers
-      .groupBy(matchImportGroup) // Groups imports by importer prefix.
+      // Groups imports by importer prefix.
+      .groupBy(matchImportGroup)
+      .mapValues(deduplicateImportees)
+      .mapValues(organizeImportGroup)
       .toSeq
-      .sortBy { case (index, _) => index } // Sorts import groups by group index
-      .map {
-        // Organize imports within the same group.
-        case (_, importers) => organizeImportGroup(deduplicateImportees(importers))
-      }
+      .sortBy { case (groupIndex, _) => groupIndex }
+  }
 
   private def deduplicateImportees(importers: Seq[Importer]): Seq[Importer] = {
     // Scalameta `Tree` nodes do not provide structural equality comparisons, here we pretty-print
@@ -590,6 +593,48 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       index
     }
   }
+
+  private def prependOrganizedImports(
+    token: Token,
+    importGroups: Seq[(Int, Seq[Importer])]
+  ): Patch = {
+    val withBlankLines = {
+      val prettyPrintedGroups: Seq[(Int, String)] = importGroups.map { case (index, imports) =>
+        index -> prettyPrintImportGroup(imports)
+      }
+
+      val blankLines: Seq[(Int, String)] = importMatchers.zipWithIndex
+        .filter { case (m, _) => m == ImportMatcher.BlankLine }
+        .map { case (_, index) => index -> "\n" }
+
+      (prettyPrintedGroups ++ blankLines)
+        .sortBy { case (index, _) => index }
+        .map { case (_, prettyPrinted) => prettyPrinted }
+    }
+
+    // Global imports within curly-braced packages must be indented accordingly, e.g.:
+    //
+    //   package foo {
+    //     package bar {
+    //       import baz
+    //       import qux
+    //     }
+    //   }
+    val indentedOutput: Iterator[String] = withBlankLines
+      .mkString("\n")
+      .trim()
+      .replaceAll("\n{2,}", "\n\n")
+      .linesIterator
+      .zipWithIndex
+      .map {
+        // The first line will be inserted at an already indented position.
+        case (line, 0)                 => line
+        case (line, _) if line.isEmpty => line
+        case (line, _)                 => " " * token.pos.startColumn + line
+      }
+
+    Patch.addLeft(token, indentedOutput mkString "\n")
+  }
 }
 
 object OrganizeImports {
@@ -735,31 +780,6 @@ object OrganizeImports {
 
       Option((names.toList, renames.toList, unimports.toList, maybeWildcard))
     }
-  }
-
-  private def prependOrganizedImports(token: Token, importGroups: Seq[Seq[Importer]]): Patch = {
-    // Global imports within curly-braced packages must be indented accordingly, e.g.:
-    //
-    //   package foo {
-    //     package bar {
-    //       import baz
-    //       import qux
-    //     }
-    //   }
-    val indentedOutput: Iterator[String] =
-      importGroups
-        .map(prettyPrintImportGroup)
-        .mkString("\n\n")
-        .linesIterator
-        .zipWithIndex
-        .map {
-          // The first line will be inserted at an already indented position.
-          case (line, 0)                 => line
-          case (line, _) if line.isEmpty => line
-          case (line, _)                 => " " * token.pos.startColumn + line
-        }
-
-    Patch.addLeft(token, indentedOutput mkString "\n")
   }
 
   implicit private class SymbolExtension(symbol: Symbol) {
