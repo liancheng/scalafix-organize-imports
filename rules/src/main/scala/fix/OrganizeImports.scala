@@ -31,27 +31,7 @@ import scalafix.v1.XtensionTreeScalafix
 class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("OrganizeImports") {
   import OrganizeImports._
 
-  private val importMatchers = {
-    // The wildcard group should always exist. Append one at the end if omitted.
-    val matchers = {
-      val parsed = config.groups map ImportMatcher.parse
-      if (parsed contains ImportMatcher.Wildcard) parsed else parsed :+ ImportMatcher.Wildcard
-    }
-
-    (
-      config.blankLines match {
-        case BlankLines.Manual =>
-          matchers
-
-        // Inserts blank lines between adjacent import groups automatically.
-        case BlankLines.Auto =>
-          Seq.tabulate((matchers.length * 2 - 1) max 0) {
-            case i if i % 2 == 0 => matchers(i / 2)
-            case _               => ImportMatcher.BlankLine
-          }
-      }
-    ) :+ ImportMatcher.BlankLine
-  }
+  private val importMatchers = buildImportMatchers(config)
 
   private val wildcardGroupIndex: Int = importMatchers indexOf ImportMatcher.Wildcard
 
@@ -120,7 +100,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     val (fullyQualifiedImporters, relativeImporters) = noImplicits partition isFullyQualified
 
     // Organizes all the fully-qualified global importers.
-    val fullyQualifiedGroups: Seq[(Int, Seq[Importer])] = {
+    val fullyQualifiedGroups: Seq[ImportGroup] = {
       val expanded = if (config.expandRelative) relativeImporters map expandRelative else Nil
       groupImporters(fullyQualifiedImporters ++ expanded)
     }
@@ -138,9 +118,9 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     }
 
     // Builds a patch that inserts the organized imports.
-    val insertionPatch = prependOrganizedImports(
+    val insertionPatch = insertOrganizedImports(
       imports.head.tokens.head,
-      fullyQualifiedGroups ++ orderPreservingGroup.map(importMatchers.length -> _)
+      fullyQualifiedGroups ++ orderPreservingGroup.map(ImportGroup(importMatchers.length, _))
     )
 
     // Builds a patch that removes all the tokens forming the original imports.
@@ -242,7 +222,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       // The top qualifier itself is `_root_`, e.g.: `import _root_.scala.util`
       || topQualifier.value == "_root_"
 
-      // Issue #64: Sometimes, the symbol of the top qualifier can be missing due to unknwon reasons
+      // Issue #64: Sometimes, the symbol of the top qualifier can be missing due to unknown reasons
       // (see https://github.com/liancheng/scalafix-organize-imports/issues/64). In this case, we
       // issue a warning and continue processing assuming that the top qualifier is fully-qualified.
       || topQualifierSymbol.isNone && {
@@ -289,15 +269,15 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     importer.copy(ref = replaceTopQualifier(importer.ref, fullyQualifiedTopQualifier))
   }
 
-  private def groupImporters(importers: Seq[Importer]): Seq[(Int, Seq[Importer])] = {
+  private def groupImporters(importers: Seq[Importer]): Seq[ImportGroup] =
     importers
       // Groups imports by importer prefix.
       .groupBy(matchImportGroup)
       .mapValues(deduplicateImportees)
       .mapValues(organizeImportGroup)
+      .map(ImportGroup.tupled)
       .toSeq
-      .sortBy { case (groupIndex, _) => groupIndex }
-  }
+      .sortBy(_.index)
 
   private def deduplicateImportees(importers: Seq[Importer]): Seq[Importer] = {
     // Scalameta `Tree` nodes do not provide structural equality comparisons, here we pretty-print
@@ -523,7 +503,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
         locally {
           val importerSyntaxMap = group.map { i => i.copy().syntax -> i }.toMap
 
-          newImporteeLists filter (_.nonEmpty) map { case importees =>
+          newImporteeLists filter (_.nonEmpty) map { importees =>
             val newImporter = Importer(ref, importees)
             importerSyntaxMap.getOrElse(newImporter.syntax, newImporter)
           }
@@ -594,23 +574,27 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     }
   }
 
-  private def prependOrganizedImports(
-    token: Token,
-    importGroups: Seq[(Int, Seq[Importer])]
-  ): Patch = {
-    val withBlankLines = {
-      val prettyPrintedGroups: Seq[(Int, String)] = importGroups.map { case (index, imports) =>
-        index -> prettyPrintImportGroup(imports)
-      }
-
-      val blankLines: Seq[(Int, String)] = importMatchers.zipWithIndex
-        .filter { case (m, _) => m == ImportMatcher.BlankLine }
-        .map { case (_, index) => index -> "\n" }
-
-      (prettyPrintedGroups ++ blankLines)
-        .sortBy { case (index, _) => index }
-        .map { case (_, prettyPrinted) => prettyPrinted }
+  private def insertOrganizedImports(token: Token, importGroups: Seq[ImportGroup]): Patch = {
+    val prettyPrintedGroups = importGroups.map { case ImportGroup(index, imports) =>
+      index -> prettyPrintImportGroup(imports)
     }
+
+    val blankLines = {
+      val blankLineIndices = {
+        for ((ImportMatcher.BlankLine, index) <- importMatchers.zipWithIndex) yield index
+      }.toSet
+
+      // Checks each pair of adjacent import groups. Inserts a blank line between them when needed.
+      importGroups map (_.index) sliding 2 filter (_.length == 2) flatMap { case Seq(lhs, rhs) =>
+        val hasBlankLine = blankLineIndices exists (i => lhs < i && i < rhs)
+        if (hasBlankLine) Some((lhs + 1) -> "") else None
+      }
+    }
+
+    val withBlankLines = (prettyPrintedGroups ++ blankLines)
+      .sortBy { case (index, _) => index }
+      .map { case (_, group) => group }
+      .mkString("\n")
 
     // Global imports within curly-braced packages must be indented accordingly, e.g.:
     //
@@ -620,24 +604,35 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     //       import qux
     //     }
     //   }
-    val indentedOutput: Iterator[String] = withBlankLines
-      .mkString("\n")
-      .trim()
-      .replaceAll("\n{2,}", "\n\n")
-      .linesIterator
-      .zipWithIndex
-      .map {
-        // The first line will be inserted at an already indented position.
-        case (line, 0)                 => line
-        case (line, _) if line.isEmpty => line
-        case (line, _)                 => " " * token.pos.startColumn + line
-      }
+    val indentedOutput = withBlankLines.linesIterator.zipWithIndex.map {
+      // The first line will be inserted at an already indented position.
+      case (line, 0)                 => line
+      case (line, _) if line.isEmpty => line
+      case (line, _)                 => " " * token.pos.startColumn + line
+    }
 
     Patch.addLeft(token, indentedOutput mkString "\n")
   }
 }
 
 object OrganizeImports {
+  private case class ImportGroup(index: Int, imports: Seq[Importer])
+
+  private def buildImportMatchers(config: OrganizeImportsConfig): Seq[ImportMatcher] = {
+    import ImportMatcher._
+
+    val withWildcard = {
+      val parsed = config.groups map parse
+      // The wildcard group should always exist. Appends one at the end if omitted.
+      if (parsed contains Wildcard) parsed else parsed :+ Wildcard
+    }
+
+    config.blankLines match {
+      case BlankLines.Manual => withWildcard
+      case BlankLines.Auto   => withWildcard.flatMap(_ :: BlankLine :: Nil)
+    }
+  }
+
   private def positionOf(importee: Importee): Position =
     importee match {
       case Importee.Rename(from, _) => from.pos
@@ -669,7 +664,7 @@ object OrganizeImports {
   /**
    * HACK: The Scalafix pretty-printer decides to add spaces after open and before close braces in
    * imports, i.e., `import a.{ b, c }` instead of `import a.{b, c}`. Unfortunately, this behavior
-   * cannot be overriden. This function removes the unwanted spaces as a workaround. In cases where
+   * cannot be overridden. This function removes the unwanted spaces as a workaround. In cases where
    * users do want the inserted spaces, Scalafmt should be used after running the `OrganizeImports`
    * rule.
    */
