@@ -48,9 +48,9 @@ object GroupedImports {
 
 final case class OrganizeImportsConfig(
   coalesceToWildcardImportThreshold: Int = Int.MaxValue,
-  expandRelative: Boolean = false,
+  expandRelative: Boolean = true,
   groupExplicitlyImportedImplicitsSeparately: Boolean = false,
-  groupedImports: GroupedImports = GroupedImports.Explode,
+  groupedImports: GroupedImports = GroupedImports.Merge,
   groups: Seq[String] = Seq(
     "*",
     "re:(javax?|scala)\\."

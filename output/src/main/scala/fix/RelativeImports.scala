@@ -1,10 +1,9 @@
 package fix
 
 import scala.util
+import scala.util.control
+import scala.util.control.NonFatal
 
 import sun.misc.BASE64Encoder
-
-import util.control
-import control.NonFatal
 
 object RelativeImports
