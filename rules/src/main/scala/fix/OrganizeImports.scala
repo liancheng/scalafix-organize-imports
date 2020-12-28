@@ -5,6 +5,9 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 
+import fix.ImportMatcher.*
+import fix.ImportMatcher.---
+import fix.ImportMatcher.parse
 import metaconfig.Configured
 import scala.meta.Import
 import scala.meta.Importee
@@ -30,10 +33,11 @@ import scalafix.v1.XtensionTreeScalafix
 
 class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("OrganizeImports") {
   import OrganizeImports._
+  import ImportMatcher._
 
-  private val importMatchers = buildImportMatchers(config)
+  private val matchers = buildImportMatchers(config)
 
-  private val wildcardGroupIndex: Int = importMatchers indexOf ImportMatcher.Wildcard
+  private val wildcardGroupIndex: Int = matchers indexOf *
 
   private val unusedImporteePositions: mutable.Set[Position] = mutable.Set.empty[Position]
 
@@ -113,14 +117,13 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     // require special handling.
     val orderPreservingGroup = {
       val relatives = if (config.expandRelative) Nil else relativeImporters
-      val imports = (relatives ++ implicits).sortBy(_.importees.head.pos.start)
-      Option(imports).filter(_.nonEmpty)
+      Option(relatives ++ implicits sortBy (_.importees.head.pos.start)) filter (_.nonEmpty)
     }
 
     // Builds a patch that inserts the organized imports.
     val insertionPatch = insertOrganizedImports(
       imports.head.tokens.head,
-      fullyQualifiedGroups ++ orderPreservingGroup.map(ImportGroup(importMatchers.length, _))
+      fullyQualifiedGroups ++ orderPreservingGroup.map(ImportGroup(matchers.length, _))
     )
 
     // Builds a patch that removes all the tokens forming the original imports.
@@ -137,10 +140,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   private def removeUnused(imports: Seq[Import]): Patch =
     Patch.fromIterable {
       imports flatMap (_.importers) flatMap { case Importer(_, importees) =>
-        val hasUsedWildcard = importees exists {
-          case i: Importee.Wildcard => !isUnused(i)
-          case _                    => false
-        }
+        val hasUsedWildcard = importees exists { i => i.is[Importee.Wildcard] && !isUnused(i) }
 
         importees collect {
           case i @ Importee.Rename(_, to) if isUnused(i) && hasUsedWildcard =>
@@ -159,9 +159,8 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   private def removeUnused(importer: Importer): Option[Importer] =
     if (!config.removeUnused) Some(importer)
     else {
-      val hasUsedWildcard = importer.importees exists {
-        case i: Importee.Wildcard => !isUnused(i)
-        case _                    => false
+      val hasUsedWildcard = importer.importees exists { i =>
+        i.is[Importee.Wildcard] && !isUnused(i)
       }
 
       var rewritten = false
@@ -194,8 +193,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     val (implicits, implicitPositions) = importers.flatMap {
       case importer @ Importer(_, importees) =>
         importees
-          .filter(_.is[Importee.Name])
-          .filter(name => name.symbol.infoNoThrow exists (_.isImplicit))
+          .filter(i => i.is[Importee.Name] && i.symbol.infoNoThrow.exists(_.isImplicit))
           .map(i => importer.copy(importees = i :: Nil) -> i.pos)
     }.unzip
 
@@ -271,10 +269,8 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
   private def groupImporters(importers: Seq[Importer]): Seq[ImportGroup] =
     importers
-      // Groups imports by importer prefix.
-      .groupBy(matchImportGroup)
-      .mapValues(deduplicateImportees)
-      .mapValues(organizeImportGroup)
+      .groupBy(matchImportGroup) // Groups imports by importer prefix.
+      .mapValues(deduplicateImportees _ andThen organizeImportGroup)
       .map(ImportGroup.tupled)
       .toSeq
       .sortBy(_.index)
@@ -562,7 +558,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   // by an `ImportMatcher`. If multiple `ImporterMatcher`s match the given import, the one matches
   // the longest prefix wins.
   private def matchImportGroup(importer: Importer): Int = {
-    val matchedGroups = importMatchers
+    val matchedGroups = matchers
       .map(_ matches importer)
       .zipWithIndex
       .filter { case (length, _) => length > 0 }
@@ -580,9 +576,9 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     }
 
     val blankLines = {
-      val blankLineIndices = {
-        for ((ImportMatcher.BlankLine, index) <- importMatchers.zipWithIndex) yield index
-      }.toSet
+      // Indices of all blank lines configured in `OrganizeImports.groups`, either automatically or
+      // manually.
+      val blankLineIndices = matchers.zipWithIndex.collect { case (`---`, index) => index }.toSet
 
       // Checks each pair of adjacent import groups. Inserts a blank line between them when needed.
       importGroups map (_.index) sliding 2 filter (_.length == 2) flatMap { case Seq(lhs, rhs) =>
@@ -619,17 +615,15 @@ object OrganizeImports {
   private case class ImportGroup(index: Int, imports: Seq[Importer])
 
   private def buildImportMatchers(config: OrganizeImportsConfig): Seq[ImportMatcher] = {
-    import ImportMatcher._
-
     val withWildcard = {
       val parsed = config.groups map parse
       // The wildcard group should always exist. Appends one at the end if omitted.
-      if (parsed contains Wildcard) parsed else parsed :+ Wildcard
+      if (parsed contains *) parsed else parsed :+ *
     }
 
     config.blankLines match {
       case BlankLines.Manual => withWildcard
-      case BlankLines.Auto   => withWildcard.flatMap(_ :: BlankLine :: Nil)
+      case BlankLines.Auto   => withWildcard.flatMap(_ :: --- :: Nil)
     }
   }
 
