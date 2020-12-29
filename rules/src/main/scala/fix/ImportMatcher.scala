@@ -27,14 +27,14 @@ object ImportMatcher {
   }
 
   case object * extends ImportMatcher {
-    // The wildcard matcher matches nothing and is always special-cased at the end of the import
-    // group matching process.
+    // The wildcard matcher matches nothing. It is special-cased at the end of the import group
+    // matching process.
     def matches(importer: Importer): Int = 0
   }
 
   case object --- extends ImportMatcher {
-    // Blank line matchers are a pseudo matchers matching nothing and always special-cased at the
-    // end of the import group matching process.
+    // Blank line matchers are pseudo matchers matching nothing. They are special-cased at the end
+    // of the import group matching process.
     override def matches(i: Importer): Int = 0
   }
 }

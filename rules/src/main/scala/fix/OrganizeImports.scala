@@ -73,10 +73,9 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     }
 
   override def fix(implicit doc: SemanticDocument): Patch = {
-    unusedImporteePositions ++=
-      doc.diagnostics
-        .filter(_.message == "Unused import")
-        .map(_.position)
+    unusedImporteePositions ++= doc.diagnostics.collect {
+      case d if d.message == "Unused import" => d.position
+    }
 
     val (globalImports, localImports) = collectImports(doc.tree)
 
@@ -192,9 +191,10 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   )(implicit doc: SemanticDocument): (Seq[Importer], Seq[Importer]) = {
     val (implicits, implicitPositions) = importers.flatMap {
       case importer @ Importer(_, importees) =>
-        importees
-          .filter(i => i.is[Importee.Name] && i.symbol.infoNoThrow.exists(_.isImplicit))
-          .map(i => importer.copy(importees = i :: Nil) -> i.pos)
+        importees collect {
+          case i: Importee.Name if i.symbol.infoNoThrow exists (_.isImplicit) =>
+            importer.copy(importees = i :: Nil) -> i.pos
+        }
     }.unzip
 
     val noImplicits = importers.flatMap {
@@ -373,8 +373,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
         // either. If a name is renamed more than once, it only keeps one of the renames in the
         // result and may break compilation (unless other renames are not actually referenced).
         val renames = allImportees
-          .filter(_.is[Importee.Rename])
-          .map { case rename: Importee.Rename => rename }
+          .collect { case rename: Importee.Rename => rename }
           .groupBy(_.name.value)
           .map {
             case (_, rename :: Nil) => rename
@@ -580,7 +579,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       // manually.
       val blankLineIndices = matchers.zipWithIndex.collect { case (`---`, index) => index }.toSet
 
-      // Checks each pair of adjacent import groups. Inserts a blank line between them when needed.
+      // Checks each pair of adjacent import groups. Inserts a blank line between them if necessary.
       importGroups map (_.index) sliding 2 filter (_.length == 2) flatMap { case Seq(lhs, rhs) =>
         val hasBlankLine = blankLineIndices exists (i => lhs < i && i < rhs)
         if (hasBlankLine) Some((lhs + 1) -> "") else None
@@ -589,7 +588,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
     val withBlankLines = (prettyPrintedGroups ++ blankLines)
       .sortBy { case (index, _) => index }
-      .map { case (_, group) => group }
+      .map { case (_, lines) => lines }
       .mkString("\n")
 
     // Global imports within curly-braced packages must be indented accordingly, e.g.:
@@ -600,14 +599,14 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     //       import qux
     //     }
     //   }
-    val indentedOutput = withBlankLines.linesIterator.zipWithIndex.map {
+    val indented = withBlankLines.linesIterator.zipWithIndex.map {
       // The first line will be inserted at an already indented position.
       case (line, 0)                 => line
       case (line, _) if line.isEmpty => line
       case (line, _)                 => " " * token.pos.startColumn + line
     }
 
-    Patch.addLeft(token, indentedOutput mkString "\n")
+    Patch.addLeft(token, indented mkString "\n")
   }
 }
 
