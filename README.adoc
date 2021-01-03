@@ -92,7 +92,7 @@ By default, `OrganizeImports` already removes unused imports for you (see the <<
 ----
 OrganizeImports {
   coalesceToWildcardImportThreshold = 2147483647 # Int.MaxValue
-  expandRelative = true
+  expandRelative = false
   groupExplicitlyImportedImplicitsSeparately = false
   groupedImports = Merge
   groups = ["*", "re:(javax?|scala)\\."]
@@ -215,7 +215,7 @@ Boolean
 
 ==== Default value
 
-`true`
+`false`
 
 ==== Example
 

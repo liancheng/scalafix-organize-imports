@@ -48,7 +48,7 @@ object GroupedImports {
 
 final case class OrganizeImportsConfig(
   coalesceToWildcardImportThreshold: Int = Int.MaxValue,
-  expandRelative: Boolean = true,
+  expandRelative: Boolean = false,
   groupExplicitlyImportedImplicitsSeparately: Boolean = false,
   groupedImports: GroupedImports = GroupedImports.Merge,
   groups: Seq[String] = Seq(
