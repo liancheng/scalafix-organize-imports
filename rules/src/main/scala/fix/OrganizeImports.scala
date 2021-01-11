@@ -795,9 +795,9 @@ object OrganizeImports {
       }
 
     /**
-     * Returns an `Importer` with all the `Importee`s selected from the input `Importer` that
-     * satisfy a predicate. If all the `Importee`s are selected, the input `Importer` instance is
-     * returned to preserve the original source level formatting. If none of the `Importee`s are
+     * Returns an `Importer` with all the `Importee`s that are selected from the input `Importer`
+     * and satisfy a predicate. If all the `Importee`s are selected, the input `Importer` instance
+     * is returned to preserve the original source level formatting. If none of the `Importee`s are
      * selected, returns a `None`.
      */
     def filterImportees(f: Importee => Boolean): Option[Importer] = {
