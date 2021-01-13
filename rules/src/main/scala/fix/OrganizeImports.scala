@@ -492,9 +492,9 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
             Seq(renamedImportedNames, importedNames ++ renames ++ allUnimports)
         }
 
-        // Issue #127: After merging imports within an importer group, we should check whether there
-        // are any input importers are left untouched. For those importers, we should return the
-        // original importer instance to preserve the original source level formatting.
+        // Issue #127: After merging imports within an importer group, checks whether there are any
+        // input importers left untouched. For those importers, returns the original importer
+        // instance to preserve the original source level formatting.
         locally {
           val importerSyntaxMap = group.map { i => i.copy().syntax -> i }.toMap
 
