@@ -54,15 +54,28 @@ object BlankLines {
   }
 }
 
+sealed trait BaseOnStyle
+
+object BaseOnStyle {
+  case object Default extends BaseOnStyle
+  case object IntelliJ extends BaseOnStyle
+
+  implicit def reader: ConfDecoder[BaseOnStyle] = ReaderUtil.fromMap {
+    (List(Default, IntelliJ) map (v => v.toString -> v)).toMap
+  }
+}
+
 final case class OrganizeImportsConfig(
+  baseOnStyle: BaseOnStyle = BaseOnStyle.Default,
   blankLines: BlankLines = BlankLines.Auto,
   coalesceToWildcardImportThreshold: Int = Int.MaxValue,
   expandRelative: Boolean = false,
   groupExplicitlyImportedImplicitsSeparately: Boolean = false,
-  groupedImports: GroupedImports = GroupedImports.Merge,
+  groupedImports: GroupedImports = GroupedImports.Explode,
   groups: Seq[String] = Seq(
-    "*",
-    "re:(javax?|scala)\\."
+    "re:javax?\\.",
+    "scala.",
+    "*"
   ),
   importSelectorsOrder: ImportSelectorsOrder = ImportSelectorsOrder.Ascii,
   importsOrder: ImportsOrder = ImportsOrder.Ascii,
@@ -77,4 +90,19 @@ object OrganizeImportsConfig {
 
   implicit val decoder: ConfDecoder[OrganizeImportsConfig] =
     deriveDecoder[OrganizeImportsConfig](default)
+
+  val styles: Map[BaseOnStyle, OrganizeImportsConfig] = Map(
+    BaseOnStyle.Default -> OrganizeImportsConfig(),
+    BaseOnStyle.IntelliJ -> OrganizeImportsConfig(
+      blankLines = BlankLines.Manual,
+      groupedImports = GroupedImports.Merge,
+      groups = Seq(
+        "*",
+        "---",
+        "java.",
+        "javax.",
+        "scala."
+      )
+    )
+  )
 }
