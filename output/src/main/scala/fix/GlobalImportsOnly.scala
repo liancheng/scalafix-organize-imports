@@ -2,6 +2,7 @@ package fix
 
 import java.sql.DriverManager
 import java.time.Clock
+
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
