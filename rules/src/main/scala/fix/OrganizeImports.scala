@@ -8,6 +8,9 @@ import scala.util.Try
 import fix.ImportMatcher.*
 import fix.ImportMatcher.---
 import fix.ImportMatcher.parse
+import metaconfig.Conf
+import metaconfig.ConfDecoder
+import metaconfig.ConfEncoder
 import metaconfig.Configured
 import scala.meta.Import
 import scala.meta.Importee
@@ -52,25 +55,40 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
   override def isExperimental: Boolean = true
 
   override def withConfiguration(config: Configuration): Configured[Rule] =
-    config.conf.getOrElse("OrganizeImports")(OrganizeImportsConfig()) andThen { conf =>
-      val hasWarnUnused = {
-        val warnUnusedPrefix = Set("-Wunused", "-Ywarn-unused")
-        val warnUnusedString = Set("-Xlint", "-Xlint:unused")
-        config.scalacOptions exists { option =>
-          (warnUnusedPrefix exists option.startsWith) || (warnUnusedString contains option)
-        }
-      }
+    config.conf
+      .getOrElse("OrganizeImports")(OrganizeImportsConfig())
+      .andThen(patchPreset)
+      .andThen(checkScalacOptions(_, config.scalacOptions))
 
-      if (!conf.removeUnused || hasWarnUnused)
-        Configured.ok(new OrganizeImports(conf))
-      else
-        Configured.error(
-          "The Scala compiler option \"-Ywarn-unused\" is required to use OrganizeImports with"
-            + " \"OrganizeImports.removeUnused\" set to true. To fix this problem, update your"
-            + " build to use at least one Scala compiler option like -Ywarn-unused-import (2.11"
-            + " only), -Ywarn-unused, -Xlint:unused (2.12.2 or above) or -Wunused (2.13 only)."
-        )
+  private def patchPreset(conf: OrganizeImportsConfig): Configured[OrganizeImportsConfig] = {
+    val preset = OrganizeImportsConfig.presets(conf.preset)
+    val presetConf = ConfEncoder[OrganizeImportsConfig].write(preset)
+    val patch = Conf.patch(presetConf, ConfEncoder[OrganizeImportsConfig].write(conf))
+    ConfDecoder[OrganizeImportsConfig].read(Conf.applyPatch(presetConf, patch))
+  }
+
+  private def checkScalacOptions(
+    conf: OrganizeImportsConfig,
+    scalacOptions: List[String]
+  ): Configured[Rule] = {
+    val hasWarnUnused = {
+      val warnUnusedPrefix = Set("-Wunused", "-Ywarn-unused")
+      val warnUnusedString = Set("-Xlint", "-Xlint:unused")
+      scalacOptions exists { option =>
+        (warnUnusedPrefix exists option.startsWith) || (warnUnusedString contains option)
+      }
     }
+
+    if (!conf.removeUnused || hasWarnUnused)
+      Configured.ok(new OrganizeImports(conf))
+    else
+      Configured.error(
+        "The Scala compiler option \"-Ywarn-unused\" is required to use OrganizeImports with"
+          + " \"OrganizeImports.removeUnused\" set to true. To fix this problem, update your"
+          + " build to use at least one Scala compiler option like -Ywarn-unused-import (2.11"
+          + " only), -Ywarn-unused, -Xlint:unused (2.12.2 or above) or -Wunused (2.13 only)."
+      )
+  }
 
   override def fix(implicit doc: SemanticDocument): Patch = {
     unusedImporteePositions ++= doc.diagnostics.collect {
