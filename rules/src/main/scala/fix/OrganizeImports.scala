@@ -656,10 +656,12 @@ object OrganizeImports {
 
   /**
    * HACK: The Scalafix pretty-printer decides to add spaces after open and before close braces in
-   * imports, i.e., `import a.{ b, c }` instead of `import a.{b, c}`. Unfortunately, this behavior
-   * cannot be overridden. This function removes the unwanted spaces as a workaround. In cases where
-   * users do want the inserted spaces, Scalafmt should be used after running the `OrganizeImports`
-   * rule.
+   * imports with multiple importees, i.e., `import a.{ b, c }` instead of `import a.{b, c}`. On the
+   * other hand, renames are pretty-printed without the extra spaces, e.g., `import a.{b => c}`.
+   * This behavior is not customizable and makes ordering imports by ASCII order complicated.
+   *
+   * This function removes the unwanted spaces as a workaround. In cases where users do want the
+   * inserted spaces, Scalafmt should be used after running the `OrganizeImports` rule.
    */
   private def importerSyntax(importer: Importer): String =
     importer.pos match {
