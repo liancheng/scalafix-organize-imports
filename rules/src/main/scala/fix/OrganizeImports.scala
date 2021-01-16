@@ -11,7 +11,9 @@ import fix.ImportMatcher.parse
 import metaconfig.Conf
 import metaconfig.ConfDecoder
 import metaconfig.ConfEncoder
+import metaconfig.ConfOps
 import metaconfig.Configured
+import metaconfig.internal.ConfGet
 import scala.meta.Import
 import scala.meta.Importee
 import scala.meta.Importer
@@ -54,17 +56,22 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
   override def isExperimental: Boolean = true
 
-  override def withConfiguration(config: Configuration): Configured[Rule] =
+  override def withConfiguration(config: Configuration): Configured[Rule] = {
     config.conf
       .getOrElse("OrganizeImports")(OrganizeImportsConfig())
-      .andThen(patchPreset)
+      .andThen(patchPreset(_, config.conf))
       .andThen(checkScalacOptions(_, config.scalacOptions))
+  }
 
-  private def patchPreset(conf: OrganizeImportsConfig): Configured[OrganizeImportsConfig] = {
-    val preset = OrganizeImportsConfig.presets(conf.preset)
+  private def patchPreset(
+    ruleConf: OrganizeImportsConfig,
+    conf: Conf
+  ): Configured[OrganizeImportsConfig] = {
+    val preset = OrganizeImportsConfig.presets(ruleConf.preset)
     val presetConf = ConfEncoder[OrganizeImportsConfig].write(preset)
-    val patch = Conf.patch(presetConf, ConfEncoder[OrganizeImportsConfig].write(conf))
-    ConfDecoder[OrganizeImportsConfig].read(Conf.applyPatch(presetConf, patch))
+    val userConf = ConfGet.getKey(conf, "OrganizeImports" :: Nil).getOrElse(Conf.Obj.empty)
+    val mergedConf = ConfOps.merge(presetConf, userConf)
+    ConfDecoder[OrganizeImportsConfig].read(mergedConf)
   }
 
   private def checkScalacOptions(
