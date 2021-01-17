@@ -102,6 +102,7 @@ object OrganizeImportsConfig {
     Preset.DEFAULT -> OrganizeImportsConfig(),
     Preset.INTELLIJ_2020_3 -> OrganizeImportsConfig(
       blankLines = BlankLines.Manual,
+      coalesceToWildcardImportThreshold = 5,
       groupedImports = GroupedImports.Merge,
       groups = Seq(
         "*",
