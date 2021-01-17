@@ -71,7 +71,7 @@ object Preset {
 
 final case class OrganizeImportsConfig(
   blankLines: BlankLines = BlankLines.Auto,
-  coalesceToWildcardImportThreshold: Int = Int.MaxValue,
+  coalesceToWildcardImportThreshold: Option[Int] = None,
   expandRelative: Boolean = false,
   groupExplicitlyImportedImplicitsSeparately: Boolean = false,
   groupedImports: GroupedImports = GroupedImports.Explode,
@@ -102,7 +102,7 @@ object OrganizeImportsConfig {
     Preset.DEFAULT -> OrganizeImportsConfig(),
     Preset.INTELLIJ_2020_3 -> OrganizeImportsConfig(
       blankLines = BlankLines.Manual,
-      coalesceToWildcardImportThreshold = 5,
+      coalesceToWildcardImportThreshold = Some(5),
       groupedImports = GroupedImports.Merge,
       groups = Seq(
         "*",

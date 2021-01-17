@@ -516,8 +516,10 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
   private def coalesceImportees(importer: Importer): Importer = {
     val Importees(names, renames, unimports, _) = importer.importees
-    if (names.length <= config.coalesceToWildcardImportThreshold) importer
-    else importer.copy(importees = renames ++ unimports :+ Importee.Wildcard())
+    config.coalesceToWildcardImportThreshold
+      .filter(names.length > _)
+      .map(_ => importer.copy(importees = renames ++ unimports :+ Importee.Wildcard()))
+      .getOrElse(importer)
   }
 
   private def sortImportees(importer: Importer): Importer = {
