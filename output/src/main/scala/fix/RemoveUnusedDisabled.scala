@@ -5,8 +5,7 @@ import fix.UnusedImports.a.v2
 import fix.UnusedImports.b.v3
 import fix.UnusedImports.c.{v5 => w1}
 import fix.UnusedImports.c.{v6 => w2}
-import fix.UnusedImports.d._
-import fix.UnusedImports.d.{v7 => unused}
+import fix.UnusedImports.d.{v7 => unused, _}
 
 object RemoveUnusedDisabled {
   import fix.UnusedImports.e.v9
