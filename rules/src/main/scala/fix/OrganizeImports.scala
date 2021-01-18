@@ -56,12 +56,11 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
   override def isExperimental: Boolean = true
 
-  override def withConfiguration(config: Configuration): Configured[Rule] = {
+  override def withConfiguration(config: Configuration): Configured[Rule] =
     config.conf
       .getOrElse("OrganizeImports")(OrganizeImportsConfig())
       .andThen(patchPreset(_, config.conf))
       .andThen(checkScalacOptions(_, config.scalacOptions))
-  }
 
   override def fix(implicit doc: SemanticDocument): Patch = {
     unusedImporteePositions ++= doc.diagnostics.collect {
