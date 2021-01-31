@@ -89,14 +89,9 @@ final case class OrganizeImportsConfig(
 object OrganizeImportsConfig {
   val default: OrganizeImportsConfig = OrganizeImportsConfig()
 
-  implicit val surface: Surface[OrganizeImportsConfig] =
-    deriveSurface[OrganizeImportsConfig]
-
-  implicit val decoder: ConfDecoder[OrganizeImportsConfig] =
-    deriveDecoder[OrganizeImportsConfig](default)
-
-  implicit val encoder: ConfEncoder[OrganizeImportsConfig] =
-    deriveEncoder[OrganizeImportsConfig]
+  implicit val surface: Surface[OrganizeImportsConfig] = deriveSurface
+  implicit val encoder: ConfEncoder[OrganizeImportsConfig] = deriveEncoder
+  implicit val decoder: ConfDecoder[OrganizeImportsConfig] = deriveDecoder(default)
 
   val presets: Map[Preset, OrganizeImportsConfig] = Map(
     Preset.DEFAULT -> OrganizeImportsConfig(),
