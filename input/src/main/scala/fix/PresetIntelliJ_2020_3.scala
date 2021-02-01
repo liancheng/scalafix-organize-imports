@@ -14,6 +14,8 @@ import java.math.BigInteger
 import java.util.Collections.binarySearch
 import java.util.Collections.emptyList
 import javax.management.MXBean
-import fix.PresetIntelliJ_2020_3
+import fix.PresetIntelliJ_2020_3.a
 
-object PresetIntelliJ_2020_3
+object PresetIntelliJ_2020_3 {
+  val a: Any = ???
+}

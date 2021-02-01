@@ -1,6 +1,6 @@
 package fix
 
-import fix.PresetIntelliJ_2020_3
+import fix.PresetIntelliJ_2020_3.a
 
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -10,4 +10,6 @@ import javax.management.MXBean
 import scala.collection.mutable
 import scala.util.Try
 
-object PresetIntelliJ_2020_3
+object PresetIntelliJ_2020_3 {
+  val a: Any = ???
+}

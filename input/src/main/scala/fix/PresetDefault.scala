@@ -14,6 +14,8 @@ import java.math.BigInteger
 import java.util.Collections.binarySearch
 import java.util.Collections.emptyList
 import javax.management.MXBean
-import fix.PresetDefault
+import fix.PresetDefault.a
 
-object PresetDefault
+object PresetDefault {
+  val a: Any = ???
+}
