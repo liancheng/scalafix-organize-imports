@@ -76,9 +76,8 @@ final case class OrganizeImportsConfig(
   groupExplicitlyImportedImplicitsSeparately: Boolean = false,
   groupedImports: GroupedImports = GroupedImports.Explode,
   groups: Seq[String] = Seq(
-    "re:javax?\\.",
-    "scala.",
-    "*"
+    "*",
+    "re:(javax?|scala)\\."
   ),
   importSelectorsOrder: ImportSelectorsOrder = ImportSelectorsOrder.Ascii,
   importsOrder: ImportsOrder = ImportsOrder.Ascii,
@@ -96,16 +95,8 @@ object OrganizeImportsConfig {
   val presets: Map[Preset, OrganizeImportsConfig] = Map(
     Preset.DEFAULT -> OrganizeImportsConfig(),
     Preset.INTELLIJ_2020_3 -> OrganizeImportsConfig(
-      blankLines = BlankLines.Manual,
       coalesceToWildcardImportThreshold = Some(5),
-      groupedImports = GroupedImports.Merge,
-      groups = Seq(
-        "*",
-        "---",
-        "java.",
-        "javax.",
-        "scala."
-      )
+      groupedImports = GroupedImports.Merge
     )
   )
 }
