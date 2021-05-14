@@ -27,7 +27,10 @@ inThisBuild(
       "com.lihaoyi" %% "sourcecode" % "0.2.1",
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.6"
     ),
-    addCompilerPlugin(scalafixSemanticdb),
+    semanticdbEnabled := true,
+    // semanticdbTargetRoot makes it hard to have several input modules
+    semanticdbIncludeInJar := true,
+    semanticdbVersion := scalafixSemanticdb.revision,
     scalafixDependencies += "com.github.liancheng" %% "organize-imports" % "0.5.0",
     // Super shell output often messes up Scalafix test output.
     useSuperShell := false
@@ -72,7 +75,6 @@ lazy val tests = project
   .enablePlugins(ScalafixTestkitPlugin)
   .settings(
     skip in publish := true,
-    scalacOptions ++= List("-Ywarn-unused"),
     libraryDependencies +=
       "ch.epfl.scala" % "scalafix-testkit" % v.scalafixVersion % Test cross CrossVersion.full,
     (compile in Compile) := (compile in Compile)
@@ -89,5 +91,9 @@ lazy val tests = project
     scalafixTestkitInputClasspath := (
       fullClasspath.in(input, Compile).value ++
         fullClasspath.in(inputUnusedImports, Compile).value
-    ).distinct
+    ).distinct,
+    scalafixTestkitInputScalacOptions :=
+      scalacOptions.in(inputUnusedImports, Compile).value,
+    scalafixTestkitInputScalaVersion :=
+      scalaVersion.in(inputUnusedImports, Compile).value
   )
