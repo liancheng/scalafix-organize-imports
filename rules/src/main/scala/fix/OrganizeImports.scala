@@ -561,12 +561,12 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
 
     // The Scala language spec allows an import expression to have at most one final wildcard, which
     // can only appears in the last position.
-    val (wildcard, noWildcard) =
+    val (wildcards, noWildcard) =
       importer.importees partition (i => i.is[Importee.Wildcard] || i.is[Importee.GivenAll])
 
     val orderedImportees = config.importSelectorsOrder match {
-      case Ascii        => noWildcard.sortBy(_.syntax) ++ wildcard
-      case SymbolsFirst => sortImporteesSymbolsFirst(noWildcard) ++ wildcard
+      case Ascii        => Seq(noWildcard, wildcards) map (_.sortBy(_.syntax)) reduce (_ ++ _)
+      case SymbolsFirst => Seq(noWildcard, wildcards) map sortImporteesSymbolsFirst reduce (_ ++ _)
       case Keep         => importer.importees
     }
 
