@@ -888,13 +888,15 @@ object OrganizeImports {
     }
 
     /** Returns true if the `Importer` contains a standalone wildcard. */
-    def hasWildcard: Boolean = importer.importees match {
-      case Importees(_, _, unimports, _, _, wildcard) => unimports.isEmpty && wildcard.nonEmpty
+    def hasWildcard: Boolean = {
+      val Importees(_, _, unimports, _, _, wildcard) = importer.importees
+      unimports.isEmpty && wildcard.nonEmpty
     }
 
     /** Returns true if the `Importer` contains a standalone given  wildcard. */
-    def hasGivenAll: Boolean = importer.importees match {
-      case Importees(_, _, unimports, _, givenAll, _) => unimports.isEmpty && givenAll.nonEmpty
+    def hasGivenAll: Boolean = {
+      val Importees(_, _, unimports, _, givenAll, _) = importer.importees
+      unimports.isEmpty && givenAll.nonEmpty
     }
   }
 }
