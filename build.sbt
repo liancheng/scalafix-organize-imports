@@ -46,7 +46,8 @@ lazy val rules = projectMatrix
     conflictManager := ConflictManager.strict,
     dependencyOverrides ++= List(
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.6",
-      "com.lihaoyi" %% "sourcecode" % "0.2.1"
+      "com.lihaoyi" %% "sourcecode" % "0.2.1",
+      "com.lihaoyi" %% "fansi" % "0.3.0"
     ),
     libraryDependencies += "ch.epfl.scala" %% "scalafix-core" % v.scalafixVersion,
     scalacOptions ++= List("-Ywarn-unused"),
