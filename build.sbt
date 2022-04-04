@@ -48,7 +48,7 @@ lazy val rules = projectMatrix
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.6",
       "com.lihaoyi" %% "sourcecode" % "0.2.1"
     ),
-    libraryDependencies += "ch.epfl.scala" %% "scalafix-core" % v.scalafixVersion,
+    libraryDependencies += "ch.epfl.scala" %% "scalafix-core" % "0.9.34",
     scalacOptions ++= List("-Ywarn-unused"),
     scalafixOnCompile := true
   )
