@@ -564,7 +564,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     // the original importer to preserve the original source level formatting.
     val alreadySorted =
       config.importSelectorsOrder == Keep ||
-        (importer.importees corresponds orderedImportees) { (lhs, rhs) =>
+        importer.importees corresponds orderedImportees { (lhs, rhs) =>
           lhs.syntax == rhs.syntax
         }
 
@@ -602,7 +602,7 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
       // Checks each pair of adjacent import groups. Inserts a blank line between them if necessary.
       importGroups map (_.index) sliding 2 filter (_.length == 2) flatMap { case Seq(lhs, rhs) =>
         val hasBlankLine = blankLineIndices exists (i => lhs < i && i < rhs)
-        if (hasBlankLine) Some((lhs + 1) -> "") else None
+        if (hasBlankLine) Some(lhs + 1 -> "") else None
       }
     }
 
@@ -798,7 +798,7 @@ object OrganizeImports {
         //   import p.{A => _, B => _, C => D, _}
         //   import p.E
         val importeesList =
-          (names ++ givens).map(_ :: Nil) :+ (renames ++ unimports ++ wildcard ++ givenAll)
+          (names ++ givens).map(_ :: Nil) :+ renames ++ unimports ++ wildcard ++ givenAll
         importeesList filter (_.nonEmpty) map (Importer(ref, _))
 
       case importer =>
