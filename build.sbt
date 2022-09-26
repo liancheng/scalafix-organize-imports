@@ -1,5 +1,5 @@
 lazy val v = _root_.scalafix.sbt.BuildInfo
-lazy val rulesCrossVersions = Seq(v.scala213, v.scala212, v.scala211)
+lazy val rulesCrossVersions = Seq(v.scala213, v.scala212)
 lazy val scala3Version = "3.1.3"
 
 inThisBuild(
@@ -144,10 +144,5 @@ lazy val tests = projectMatrix
   .customRow(
     scalaVersions = Seq(v.scala212),
     axisValues = Seq(TargetAxis(v.scala212), VirtualAxis.jvm),
-    settings = Seq()
-  )
-  .customRow(
-    scalaVersions = Seq(v.scala211),
-    axisValues = Seq(TargetAxis(v.scala211), VirtualAxis.jvm),
     settings = Seq()
   )
