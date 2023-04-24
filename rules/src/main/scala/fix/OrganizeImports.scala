@@ -201,25 +201,23 @@ class OrganizeImports(config: OrganizeImportsConfig) extends SemanticRule("Organ
     val topQualifierSymbol = topQualifier.symbol
     val owner = topQualifierSymbol.owner
 
-    (
-      // The owner of the top qualifier is `_root_`, e.g.: `import scala.util`
-      owner.isRootPackage ||
+    // The owner of the top qualifier is `_root_`, e.g.: `import scala.util`
+    owner.isRootPackage ||
 
-      // The top qualifier is a top-level class/trait/object defined under no packages. In this
-      // case, Scalameta defines the owner to be the empty package.
-      owner.isEmptyPackage ||
+    // The top qualifier is a top-level class/trait/object defined under no packages. In this
+    // case, Scalameta defines the owner to be the empty package.
+    owner.isEmptyPackage ||
 
-      // The top qualifier itself is `_root_`, e.g.: `import _root_.scala.util`
-      topQualifier.value == "_root_" ||
+    // The top qualifier itself is `_root_`, e.g.: `import _root_.scala.util`
+    topQualifier.value == "_root_" ||
 
-      // Issue #64: Sometimes, the symbol of the top qualifier can be missing due to unknown reasons
-      // (see https://github.com/liancheng/scalafix-organize-imports/issues/64). In this case, we
-      // issue a warning and continue processing assuming that the top qualifier is fully-qualified.
-      topQualifierSymbol.isNone && {
-        diagnostics += ImporterSymbolNotFound(topQualifier)
-        true
-      }
-    )
+    // Issue #64: Sometimes, the symbol of the top qualifier can be missing due to unknown reasons
+    // (see https://github.com/liancheng/scalafix-organize-imports/issues/64). In this case, we
+    // issue a warning and continue processing assuming that the top qualifier is fully-qualified.
+    topQualifierSymbol.isNone && {
+      diagnostics += ImporterSymbolNotFound(topQualifier)
+      true
+    }
   }
 
   private def expandRelative(importer: Importer)(implicit doc: SemanticDocument): Importer = {
