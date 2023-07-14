@@ -8,6 +8,8 @@ ifdef::env-github[]
 :note-caption: :notebook:
 endif::[]
 
+IMPORTANT: This rule is included in Scalafix as https://github.com/scalacenter/scalafix/blob/v0.11.0/docs/rules/OrganizeImports.md[a built-in rule] since https://github.com/scalacenter/scalafix/releases/tag/v0.11.0[Scalafix v0.11.0]. Please refer to the https://github.com/scalacenter/scalafix/[Scalafix GitHub repository] for bug reports and feature requests.
+
 = OrganizeImports
 :icons: font
 :sectnums:
@@ -16,7 +18,7 @@ endif::[]
 :toc:
 :toclevels: 2
 
-image:https://github.com/liancheng/scalafix-organize-imports/workflows/Build/badge.svg[]
+image:https://github.com/liancheng/scalafix-organize-imports/workflows/CI/badge.svg[]
 https://github.com/liancheng/scalafix-organize-imports/releases/latest[image:https://img.shields.io/github/v/tag/liancheng/scalafix-organize-imports[]]
 https://github.com/liancheng/scalafix-organize-imports/blob/master/LICENSE[image:https://img.shields.io/github/license/liancheng/scalafix-organize-imports[]]
 https://scala-steward.org[image:https://img.shields.io/badge/Scala_Steward-helping-blue.svg[]]
